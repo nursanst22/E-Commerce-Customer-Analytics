@@ -1,0 +1,595 @@
+---
+title: "Untitled"
+author: "untitled"
+date: "2026-04-10"
+output: html_document
+---
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(readxl)
+library (tidyverse)
+library(corrplot)
+ecommerce <- read_xlsx("ecommerce.xlsx")
+
+```
+
+```{r}
+summary(ecommerce)
+glimpse(ecommerce)
+```
+
+```{r}
+colSums(is.na(ecommerce))
+```
+
+```{r}
+ecommerce_clean <- ecommerce %>%
+  mutate(Returns = ifelse(is.na(Returns), 0, Returns))
+
+colSums(is.na(ecommerce_clean))
+```
+
+```{r}
+
+
+ecommerce_clean <- ecommerce_clean  %>%
+  mutate(
+    # 1. Mengubah ID menjadi Karakter
+    CustomerID = as.character(CustomerID),
+    
+    # 2. Mengubah variabel teks menjadi Factor
+    ProductCategory = as.factor(ProductCategory),
+    PaymentMethod = as.factor(PaymentMethod),
+    Gender = as.factor(Gender),
+    
+    # 3. Mengubah variabel biner menjadi Factor
+    Churn = as.factor(Churn),
+    
+    # 4. Memperbaiki variabel Returns (Jika NA diartikan tidak retur)
+    # Sesuaikan dengan instruksi sebelumnya: NA diubah jadi 0
+    Returns = ifelse(is.na(Returns), 0, 1), # Mengubah format tanggal aneh menjadi 0 atau 1
+    Returns = as.factor(Returns)
+  )
+
+glimpse(ecommerce_clean)
+
+```
+```{r}
+ecommerce_clean %>% 
+  filter(duplicated(.))
+```
+```{r}
+# Menampilkan 10 baris pertama untuk kolom CustomerAge dan Age
+ecommerce %>% 
+  select(CustomerAge, Age) %>% 
+  head(10)
+# Membandingkan ringkasan statistik kedua kolom
+summary(ecommerce$CustomerAge)
+summary(ecommerce$Age)
+# Menghitung berapa banyak baris yang nilainya BERBEDA
+# Jika hasilnya 0, berarti keduanya 100% sama
+sum(ecommerce$CustomerAge != ecommerce$Age, na.rm = TRUE)
+```
+
+
+```{r}
+# Memanggil library
+library(dplyr)
+
+# Menghapus kolom CustomerAge dari dataset ecommerce_clean
+ecommerce_clean <- ecommerce_clean %>%
+  select(-CustomerAge)
+
+# Verifikasi: Melihat daftar nama kolom yang tersisa
+colnames(ecommerce_clean)
+```
+
+```{r}
+# Memilih variabel numerik utama untuk dianalisis
+data.num <- ecommerce_clean %>% 
+  select(TotalPurchaseAmount, ProductPrice, Quantity, Age)
+
+# Menampilkan statistik deskriptif
+summary(data.num)
+```
+
+
+```{r}
+# 1. Pastikan library yang dibutuhkan aktif
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+# 2. Membuat plot distribusi frekuensi variabel numerik
+ecommerce %>%
+  # Memilih variabel numerik utama sesuai gambar
+  select(Age, ProductPrice, Quantity, TotalPurchaseAmount) %>%
+  # Mengubah data menjadi format long agar bisa di-facet
+  pivot_longer(cols = everything(), names_to = "Variabel", values_to = "Nilai") %>%
+  ggplot(aes(x = Nilai)) +
+  # Menggunakan geom_histogram dengan warna gelap sesuai referensi
+  geom_histogram(bins = 30, fill = "#2c3e50", color = "white") +
+  # Membagi plot menjadi 4 bagian berdasarkan nama variabel
+  facet_wrap(~Variabel, scales = "free") +
+  theme_minimal() +
+  labs(
+    title = "Distribusi Frekuensi Variabel Numerik E-Commerce",
+    subtitle = "Dataset: ecommerce_customer_data_custom_ratios.csv",
+    x = "Nilai Variabel",
+    y = "Jumlah Frekuensi"
+  ) +
+  # Menyesuaikan tampilan teks agar rapi
+  theme(
+    strip.text = element_text(face = "bold"),
+    plot.title = element_text(hjust = 0.5)
+  )
+```
+
+
+```{r}
+# Analisis untuk data angka
+summary(ecommerce_clean %>% select(Age, ProductPrice, Quantity, TotalPurchaseAmount))
+# Contoh melihat jumlah pelanggan berdasarkan Gender dan Kategori Produk
+table(ecommerce_clean$Gender)
+table(ecommerce_clean$ProductCategory)
+
+# Atau gunakan prop.table untuk melihat persentase (%)
+prop.table(table(ecommerce_clean$Gender)) * 100
+```
+
+
+```{r}
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+# Mengubah format data dari lebar (wide) ke panjang (long) agar bisa di-grid
+data.num %>%
+  pivot_longer(cols = everything(), names_to = "Variabel", values_to = "Nilai") %>%
+  ggplot(aes(x = Variabel, y = Nilai, fill = Variabel)) +
+  # geom_boxplot dengan warna fill profesional
+  geom_boxplot(outlier.colour = "red", outlier.shape = 8, outlier.size = 2) +
+  theme_minimal() +
+  labs(title = "Visualisasi Boxplot untuk Deteksi Outlier",
+       subtitle = "Variabel: ProductPrice, Quantity, TotalPurchaseAmount, dan Age",
+       x = "Variabel Numerik",
+       y = "Nilai") +
+  theme(legend.position = "none")
+```
+```{r}
+# 1. Membuat fungsi hitung.outliers berbasis metode IQR
+hitung.outliers <- function(x) {
+  # Menghitung kuartil pertama (Q1) dan ketiga (Q3) dari kolom x
+  Q1 <- quantile(x, 0.25, na.rm = TRUE)
+  Q3 <- quantile(x, 0.75, na.rm = TRUE)
+  
+  # Menghitung rentang interkuartil (IQR)
+  IQR <- Q3 - Q1
+  
+  # Menentukan batas bawah dan batas atas (Metode Tukey)
+  lower_bound <- Q1 - 1.5 * IQR
+  upper_bound <- Q3 + 1.5 * IQR
+  
+  # Mengembalikan jumlah data yang berada di luar batas tersebut
+  sum(x < lower_bound | x > upper_bound, na.rm = TRUE)
+}
+
+# 2. Menyeleksi variabel numerik utama untuk dianalisis
+# Hal ini dilakukan agar tidak tercampur dengan CustomerID (karakter) atau PurchaseDate (tanggal)
+data.num <- ecommerce_clean %>% select(TotalPurchaseAmount, ProductPrice, Quantity, Age)
+
+# 3. Menerapkan fungsi pada seluruh kolom numerik
+hasil_outliers <- sapply(data.num, hitung.outliers)
+hasil_outliers
+```
+
+```{r}
+library(ggplot2)
+
+#  Boxplot Variabel Age ---
+ggplot(ecommerce_clean, aes(y = Age)) +
+  geom_boxplot(fill = "#3498db", color = "#2c3e50", width = 0.5) +
+  theme_minimal() +
+  labs(title = "Distribusi dan Deteksi Pencilan: Variabel Age",
+       subtitle = "Metode: Interquartile Range (IQR)",
+       y = "Usia (Tahun)")
+
+#  Boxplot Variabel Product Price ---
+ggplot(ecommerce_clean, aes(y = ProductPrice)) +
+  geom_boxplot(fill = "#e67e22", color = "#d35400", width = 0.5) +
+  theme_minimal() +
+  labs(title = "Distribusi dan Deteksi Pencilan: Variabel Product Price",
+       subtitle = "Metode: Interquartile Range (IQR)",
+       y = "Harga Produk")
+
+#  Boxplot Variabel Quantity ---
+ggplot(ecommerce_clean, aes(y = Quantity)) +
+  geom_boxplot(fill = "#2ecc71", color = "#27ae60", width = 0.5) +
+  theme_minimal() +
+  labs(title = "Distribusi dan Deteksi Pencilan: Variabel Quantity",
+       subtitle = "Metode: Interquartile Range (IQR)",
+       y = "Jumlah Unit")
+
+#  Boxplot Variabel Total Purchase Amount ---
+ggplot(ecommerce_clean, aes(y = TotalPurchaseAmount)) +
+  geom_boxplot(fill = "#9b59b6", color = "#8e44ad", width = 0.5) +
+  theme_minimal() +
+  labs(title = "Distribusi dan Deteksi Pencilan: Variabel Total Purchase Amount",
+       subtitle = "Metode: Interquartile Range (IQR)",
+       y = "Total Transaksi")
+```
+
+
+```{r}
+# 1. Memastikan library aktif
+library(dplyr)
+library(ggcorrplot)
+
+# 2. Tahap Transformasi: Mengubah Kategorikal & Biner menjadi Numerik
+data_korelasi_lengkap <- ecommerce_clean %>%
+  mutate(
+    # Konversi variabel biner (Churn & Returns)
+    Churn = as.numeric(as.character(Churn)),
+    Returns = as.numeric(as.character(Returns)),
+    
+    # Konversi Kategorikal (Label Encoding) agar menjadi angka
+    # Gender: Male = 1, Female = 2 (atau sebaliknya)
+    Gender_Num = as.numeric(as.factor(Gender)),
+    
+    # ProductCategory & PaymentMethod diubah menjadi angka berdasarkan kategorinya
+    ProductCategory_Num = as.numeric(as.factor(ProductCategory)),
+    PaymentMethod_Num = as.numeric(as.factor(PaymentMethod))
+  ) %>%
+  # 3. Seleksi variabel numerik akhir untuk Heatmap
+  select(
+    ProductPrice, 
+    Quantity, 
+    TotalPurchaseAmount, 
+    Age, 
+    Churn, 
+    Returns,
+    Gender_Num,
+    ProductCategory_Num,
+    PaymentMethod_Num
+  )
+
+# 4. Hitung Matriks Korelasi
+# Menggunakan use = "complete.obs" untuk menangani Missing Values (NA)
+cor_matrix <- cor(data_korelasi_lengkap, use = "complete.obs")
+
+# 5. Visualisasi Heatmap Korelasi
+ggcorrplot(cor_matrix, 
+           type = "lower", 
+           lab = TRUE, 
+           lab_size = 3, 
+           colors = c("#e74c3c", "white", "#3498db"), 
+           title = "Matriks Korelasi Seluruh Variabel  ",
+           ggtheme = theme_minimal())
+```
+
+```{r}
+# 1. Menyiapkan data korelasi (Pastikan variabel kategorikal sudah di-numerikkan)
+data_korelasi <- ecommerce_clean %>%
+  mutate(
+    Gender_Num = as.numeric(as.factor(Gender)),
+    Category_Num = as.numeric(as.factor(ProductCategory)),
+    Payment_Num = as.numeric(as.factor(PaymentMethod)),
+    Churn_Num = as.numeric(as.factor(Churn)),
+    Returns_Num = as.numeric(as.factor(Returns))
+  ) %>%
+  # Pilih variabel yang benar-benar memiliki variasi angka
+  select(Age, ProductPrice, Quantity, TotalPurchaseAmount, 
+         Gender_Num, Category_Num, Payment_Num, Churn_Num, Returns_Num)
+
+# 2. Menghitung Matriks Korelasi
+corr_matrix <- cor(data_korelasi, use = "complete.obs")
+
+# 3. Menampilkan Heatmap (Ubah hc.order menjadi FALSE jika error berlanjut)
+library(ggcorrplot)
+ggcorrplot(corr_matrix, 
+           hc.order = FALSE, # Diubah menjadi FALSE untuk menghindari error hclust
+           type = "lower",
+           lab = TRUE, 
+           lab_size = 3, 
+           method = "square", 
+           colors = c("#e74c3c", "white", "#3498db"), 
+           title = "Matriks Korelasi Variabel E-Commerce",
+           ggtheme = theme_minimal())
+```
+
+```{r}
+
+
+
+# Tanggal Analisis (Reference Date)
+# ambil satu hari setelah transaksi terakhir yang ada di seluruh dataset
+tanggal_analisis <- max(ecommerce_clean$PurchaseDate) + 1
+
+#  Transformasi RFM
+data_rfm <- ecommerce_clean %>%
+  group_by(CustomerID) %>%
+  summarise(
+    # Recency: Selisih hari antara tanggal analisis dan tanggal terakhir belanja
+    Recency = as.numeric(tanggal_analisis - max(PurchaseDate)),
+    
+    # Frequency: Menghitung berapa kali CustomerID muncul (jumlah transaksi)
+    Frequency = n(),
+  
+    # : Total uang yang dikeluarkan (jumlahkan kolom TotalPurchaseAmount)
+    Monetary = sum(TotalPurchaseAmount)
+  )
+
+#hasil transformasi
+head(data_rfm)
+summary(data_rfm)
+# Simpan hanya kolom numerik untuk input algoritma (tanpa CustomerID)
+data_input_model <- data_final_norm %>% 
+  select(R_norm, F_norm, M_norm)
+ 
+```
+
+```{r}
+data_final_norm <- data_rfm %>%
+  mutate(
+    R_norm = (Recency - min(Recency)) / (max(Recency) - min(Recency)),
+    F_norm = (Frequency - min(Frequency)) / (max(Frequency) - min(Frequency)),
+    M_norm = (Monetary - min(Monetary)) / (max(Monetary) - min(Monetary))
+  )
+
+
+head(data_final_norm %>% select(CustomerID, R_norm, F_norm, M_norm))
+# Simpan hanya kolom numerik untuk input algoritma (tanpa CustomerID)
+data_input_model <- data_final_norm %>% 
+  select(R_norm, F_norm, M_norm)
+```
+
+
+```{r}
+# Memuat library
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# 1. Visualisasi Distribusi untuk TotalPurchaseAmount dan Age
+ecommerce_clean %>%
+  select(TotalPurchaseAmount, Age) %>%
+  pivot_longer(cols = everything(), names_to = "Variabel", values_to = "Nilai") %>%
+  ggplot(aes(x = Nilai)) +
+  # Histogram dengan Density Plot
+  geom_histogram(aes(y = ..density..), bins = 30, fill = "#34495e", color = "white", alpha = 0.7) +
+  geom_density(color = "#e74c3c", size = 1) +
+  facet_wrap(~Variabel, scales = "free") +
+  theme_minimal() +
+  labs(title = "Analisis Distribusi: Histogram & Density Plot",
+       subtitle = "Mengecek Kemiringan (Skewness) Data Pelanggan",
+       x = "Nilai",
+       y = "Densitas")
+summary(ecommerce_clean$Age)
+```
+```{r}
+summary(ecommerce_clean$TotalPurchaseAmount)
+```
+
+```{r echo=FALSE}
+# Memuat library yang diperlukan
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+
+# 1. Menyiapkan data tren bulanan
+# Mengelompokkan transaksi berdasarkan bulan dan tahun
+tren_bulanan <- ecommerce_clean %>%
+  mutate(Bulan_Tahun = floor_date(as.Date(PurchaseDate), "month")) %>%
+  group_by(Bulan_Tahun) %>%
+  summarise(Total_Transaksi = n())
+
+# 2. Membuat Grafik Garis (Line Chart)
+ggplot(tren_bulanan, aes(x = Bulan_Tahun, y = Total_Transaksi)) +
+  geom_line(color = "#2c3e50", size = 1) + # Garis utama
+  geom_point(color = "#e74c3c", size = 2) + # Titik data setiap bulan
+  theme_minimal() +
+  labs(
+    title = "Tren Frekuensi Transaksi E-Commerce per Bulan",
+    subtitle = "Visualisasi untuk Validasi Dimensi Recency dan Perilaku Pelanggan",
+    x = "Periode (Bulan-Tahun)",
+    y = "Jumlah Transaksi"
+  ) +
+  scale_x_date(date_labels = "%b %Y", date_breaks = "3 month") # Format label sumbu X
+
+
+```
+```{r}
+# Memuat library
+library(dplyr)
+library(lubridate)
+
+# 3. Visualisasi sederhana distribusi transaksi per tanggal
+library(ggplot2)
+ggplot(ecommerce_clean, aes(x = PurchaseDate)) +
+  geom_histogram(bins = 50, fill = "steelblue", color = "white") +
+  theme_minimal() +
+  labs(title = "Distribusi Waktu Transaksi", x = "Tanggal", y = "Frekuensi")
+
+# 1. Mengecek rentang waktu (Min & Max Date)
+date_range <- ecommerce_clean%>%
+  summary(
+    Tanggal_Awal = min(PurchaseDate),
+    Tanggal_Akhir = max(PurchaseDate),
+    Total_Hari = as.numeric(difftime(max(PurchaseDate), min(PurchaseDate), units = "days"))
+  )
+print(date_range)
+
+# 2. Uji Masa Depan (Mengecek jika ada tanggal melebihi hari ini)
+future_dates <- ecommerce_clean %>%
+  filter(PurchaseDate > Sys.time())
+print(paste("Jumlah transaksi di masa depan:", nrow(future_dates)))
+
+```
+
+```{r}
+# Memuat library yang diperlukan
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(patchwork) # Untuk menggabungkan grafik
+
+# 1. Pengecekan konsistensi teks (Menghindari "Home" vs "home")
+# Mengubah semua teks menjadi format Proper Case agar seragam
+ecommerce_clean <- ecommerce_clean %>%
+  mutate(
+    ProductCategory = stringr::str_to_title(ProductCategory),
+    PaymentMethod = stringr::str_to_title(PaymentMethod),
+    Gender = stringr::str_to_title(Gender)
+  )
+
+# 2. Membuat Bar Chart untuk Gender dengan sintaks terbaru
+p_gender <- ggplot(ecommerce_clean, aes(x = Gender, fill = Gender)) +
+  geom_bar() +
+  geom_text(stat='count', aes(label=after_stat(count)), vjust=-0.5, size=3) +
+  theme_minimal() +
+  scale_fill_manual(values = c("#3498db", "#e74c3c")) +
+  labs(title = "Distribusi Gender", x = "", y = "Frekuensi") +
+  theme(legend.position = "none")
+
+
+# 3. Membuat Bar Chart untuk Kategori Produk (Horizontal agar teks terbaca)
+p_product <- ggplot(ecommerce_clean, aes(x = reorder(ProductCategory, ProductCategory, function(x) + length(x)), fill = ProductCategory)) +
+  geom_bar() +
+  coord_flip() +
+  theme_minimal() +
+  labs(title = "Dominasi Kategori Produk", x = "Kategori", y = "Frekuensi") +
+  theme(legend.position = "none")
+
+# 4. Membuat Bar Chart untuk Metode Pembayaran
+p_payment <- ggplot(ecommerce_clean, aes(x = PaymentMethod, fill = PaymentMethod)) +
+  geom_bar() +
+  theme_minimal() +
+  labs(title = "Metode Pembayaran", x = "Metode", y = "Frekuensi") +
+  theme(legend.position = "none", axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Menggabungkan grafik dalam satu layout profesional untuk laporan
+(p_gender | p_payment) / p_product
+```
+```{r}
+# 1. Memanggil library yang diperlukan
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+# 2. Membuat Density Plot Overlay untuk membandingkan skala R, F, M
+data_final_norm %>%
+  # Memilih kolom yang sudah dinormalisasi
+  select(R_norm, F_norm, M_norm) %>%
+  # Mengubah format data menjadi long-format agar bisa dibandingkan dalam satu plot
+  pivot_longer(cols = everything(), names_to = "Metrik_Normal", values_to = "Nilai") %>%
+  ggplot(aes(x = Nilai, fill = Metrik_Normal, color = Metrik_Normal)) +
+  # Menggunakan geom_density dengan transparansi agar tumpang tindih terlihat jelas
+  geom_density(alpha = 0.3, size = 1) +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set1") +
+  scale_color_brewer(palette = "Set1") +
+  # Membatasi sumbu X hanya dari 0 sampai 1 sesuai karakteristik Min-Max Scaling
+  xlim(0, 1) + 
+  labs(
+    title = "Distribusi Metrik RFM Setelah Normalisasi Min-Max",
+    subtitle = "Menunjukkan kesetaraan skala variabel (0 - 1) untuk persiapan Clustering",
+    x = "Nilai Normalisasi",
+    y = "Kepadatan (Density)",
+    fill = "Metrik",
+    color = "Metrik"
+  ) +
+  theme(legend.position = "bottom")
+```
+```{r}
+# 1. Load Library
+library(ggplot2)
+library(patchwork) # Untuk menggabungkan plot
+
+# 2. Visualisasi Frequency (Merah)
+p1 <- ggplot(data_rfm, aes(x = Frequency)) +
+  geom_density(fill = "#e74c3c", alpha = 0.8) +
+  theme_minimal() +
+  labs(title = "Frequency", x = NULL, y = "Kepadatan (Density)")
+
+# 3. Visualisasi Monetary (Biru)
+p2 <- ggplot(data_rfm, aes(x = Monetary)) +
+  geom_density(fill = "#2980b9", alpha = 0.8) +
+  theme_minimal() +
+  labs(title = "Monetary", x = "Nilai Metrik", y = NULL)
+
+# 4. Visualisasi Recency (Hijau)
+p3 <- ggplot(data_rfm, aes(x = Recency)) +
+  geom_density(fill = "#27ae60", alpha = 0.8) +
+  theme_minimal() +
+  labs(title = "Recency", x = NULL, y = NULL)
+
+# 5. Menggabungkan ketiga plot dalam satu tampilan
+(p1 | p2 | p3) + 
+  plot_annotation(
+    title = 'Distribusi Frekuensi Metrik RFM Pelanggan',
+    subtitle = 'Visualisasi sebaran variabel Recency, Frequency, dan Monetary'
+  )
+```
+
+```{r}
+
+
+# --- MENCARI PARAMETER OPTIMAL 4 ALGORITMA ---
+# Library yang dibutuhkan
+library(cluster)    # Untuk Silhouette
+library(factoextra) # Untuk visualisasi Elbow
+library(mclust)     # Untuk GMM & BIC
+library(dbscan)     # Untuk DBSCAN K-Distance Plot
+library(meanShiftR)  # Untuk Mean-Shift
+
+# Menyiapkan Sampel Data (Representatif)
+set.seed(123)
+data_sample <- data_input_model[sample(nrow(data_input_model), 20000), ]
+
+# ==========================================================
+# 1. PARAMETER K-MEANS & GMM (Elbow, Silhouette, BIC)
+# ==========================================================
+
+# A. METODE ELBOW (Mencari Siku/WCSS - Rumus Persamaan 4)
+fviz_nbclust(data_sample, kmeans, method = "wss") +
+  labs(title = "Elbow Method: Mencari Siku (WCSS)", x = "Jumlah Klaster (k)")
+
+# B. SILHOUETTE ANALYSIS (Rumus Persamaan 7)
+fviz_nbclust(data_sample, kmeans, method = "silhouette") +
+  labs(title = "Silhouette Analysis: Mencari Nilai Tertinggi", x = "Jumlah Klaster (k)")
+
+# C. BIC UNTUK GMM (Parameter K - Bab 2.6)
+gmm_bic <- mclustBIC(data_sample, G = 1:10)
+plot(gmm_bic)
+summary(gmm_bic) # Cari nilai BIC yang paling rendah/optimal
+
+# ==========================================================
+# 2. PARAMETER DBSCAN (Epsilon & MinPts - Bab 2.5)
+# ==========================================================
+
+# Menentukan MinPts (Aturan umum: Dimensi Data + 1 atau Dimensi * 2)
+# Karena RFM ada 3 variabel, kita bisa gunakan MinPts = 6
+minpts_val <- 6
+
+# K-DISTANCE PLOT (Mencari Epsilon optimal)
+kNNdistplot(data_sample, k = minpts_val)
+abline(h = 0.5, col = "red", lty = 2) # Garis bantu untuk melihat 'knee' (siku)
+# Catatan: Epsilon adalah nilai di mana terjadi kenaikan tajam (knee) pada grafik
+
+# ==========================================================
+# 3. PARAMETER MEAN-SHIFT (Bandwidth - Rumus Persamaan 6)
+# ==========================================================
+
+# Estimasi Bandwidth (KDE - Bab 2.7)
+# Bandwidth krusial agar tidak fragmen atau terlalu gabung
+bandwidth_est <- quantile(dist(data_sample), 0.1) 
+print(paste("Estimasi Bandwidth awal:", bandwidth_est))
+
+# Visualisasi pergeseran (Mean Shift Vector)
+# Mean-Shift mencari density peaks secara otomatis
+```
+
+
