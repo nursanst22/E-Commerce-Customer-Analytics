@@ -9,9 +9,9 @@ The dataset used in this project consists of over **250,000 transaction records*
 1. Transaction dates and customer identifiers.
 2. Product quantities and unit prices.
 3. Geographical and demographic data.
-*Note: The dataset has undergone rigorous preprocessing, including handling missing values and outlier detection to ensure the integrity of the clustering results.*
 
-** Methodology**
+_Note: The dataset has undergone rigorous preprocessing, including handling missing values and outlier detection to ensure the integrity of the clustering results._
+
 This project follows the **KDD (Knowledge Discovery in Databases)** stages:
 1.  Data Selection: Identifying relevant data subsets.
 2.  Preprocessing: Cleaning and handling noise or inconsistent data.
@@ -19,17 +19,17 @@ This project follows the **KDD (Knowledge Discovery in Databases)** stages:
 4.  Data Mining: Implementing clustering algorithms and Dimensionality Reduction using **Principal Component Analysis (PCA)**.
 5.  Evaluation: Validating clusters using Silhouette Score, Davies-Bouldin Index (DBI), and Calinski-Harabasz Index (CHI).
 
-## Key Findings
+**Key Findings**
 1. The **K-Means algorithm** was identified as the optimal model for this dataset, achieving a Silhouette Score of 0.38.
 2. Customers are categorized into three primary segments: **Champions, Potential Loyalists, and At-Risk Customers**.
 3. The results provide a basis for data-driven marketing strategies, such as loyalty programs and customer reactivation campaigns.
 
-## Technologies Used
+**Technologies Used**
 1. R Programming Language: Used for data manipulation, statistical analysis, and machine learning implementation.
 2. Libraries: tidyverse, cluster, factorextra, and mclust.
 3. Analysis Tools: RFM analysis and PCA.
 
-## Maintenance and Contributions
+**Maintenance and Contributions**
 This project was independently developed as a final research thesis by:
 Nur Sa'diah Nasution – Lead Data Analyst Responsibilities included end-to-end data processing, algorithm benchmarking, and strategic interpretation of the results.
 
