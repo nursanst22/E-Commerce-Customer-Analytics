@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Segmentasi Pelanggan — RFM & K-Means</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #FAFAF8;
+  --panel: #FFFFFF;
+  --ink: #15191C;
+  --muted: #6B7280;
+  --line: #E5E7EB;
+  --champ: #2D6A4F;
+  --champ-soft: #E8F3EE;
+  --loyal: #B68A35;
+  --loyal-soft: #FAF3E3;
+  --hiber: #A6453B;
+  --hiber-soft: #F8EBE9;
+  --accent: #1B4965;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Space Grotesk', sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.5;
+}
+.mono { font-family: 'IBM Plex Mono', monospace; }
+
+/* HEADER */
+header {
+  border-bottom: 1px solid var(--line);
+  padding: 28px 48px;
+  background: var(--panel);
+}
+.header-inner { max-width: 1280px; margin: 0 auto; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 16px; }
+.eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
+h1 { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.01em; }
+.meta { font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--muted); text-align: right; line-height: 1.7; }
+
+main { max-width: 1280px; margin: 0 auto; padding: 36px 48px 80px; }
+
+/* SECTION LABEL */
+.section-label {
+  display: flex; align-items: center; gap: 12px;
+  margin: 48px 0 18px;
+}
+.section-label:first-child { margin-top: 0; }
+.section-num { font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 2px 8px; }
+.section-title { font-size: 1.15rem; font-weight: 600; }
+.section-line { flex: 1; height: 1px; background: var(--line); }
+
+/* TOP KPI ROW */
+.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.kpi {
+  background: var(--panel); padding: 22px 24px;
+}
+.kpi-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 8px; }
+.kpi-val { font-size: 1.9rem; font-weight: 700; letter-spacing: -0.01em; }
+.kpi-sub { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
+.kpi-sub.winner { color: var(--champ); font-weight: 600; }
+
+/* CHART CARD */
+.card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  padding: 24px;
+}
+.card-title { font-size: 0.95rem; font-weight: 600; margin-bottom: 4px; }
+.card-sub { font-size: 0.78rem; color: var(--muted); margin-bottom: 20px; }
+
+.grid-2 { display: grid; grid-template-columns: 1.3fr 1fr; gap: 20px; align-items: start; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+/* ELBOW / METRIC CHART */
+.bar-chart { display: flex; align-items: flex-end; gap: 10px; height: 180px; padding: 12px 0; }
+.bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; position: relative; }
+.bar { width: 100%; border-radius: 4px 4px 0 0; position: relative; transition: opacity 0.2s; }
+.bar:hover { opacity: 0.8; }
+.bar-val { font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; color: var(--ink); font-weight: 600; }
+.bar-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; color: var(--muted); }
+.bar.win { background: var(--champ); }
+.bar.lose1 { background: #C9A86A; }
+.bar.lose2 { background: #94A3B8; }
+.bar.lose3 { background: #D08C84; }
+
+/* RANKING TABLE */
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+th { text-align: left; font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--line); }
+td { padding: 10px; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: none; }
+.rank-1 td { background: var(--champ-soft); }
+.algo-name { font-weight: 600; }
+.mono-num { font-family: 'IBM Plex Mono', monospace; }
+.badge { display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+.badge.best { background: var(--champ); color: white; }
+.badge.ok { background: #FEF3C7; color: #92400E; }
+.badge.poor { background: var(--hiber-soft); color: var(--hiber); }
+
+/* PCA SCATTER */
+.scatter-wrap { position: relative; height: 280px; background: linear-gradient(0deg, transparent 24px, transparent 24px), var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.scatter-axis-x, .scatter-axis-y { position: absolute; background: var(--line); }
+.scatter-axis-x { bottom: 30px; left: 30px; right: 10px; height: 1px; }
+.scatter-axis-y { top: 10px; bottom: 30px; left: 30px; width: 1px; }
+.scatter-label-x { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem; color: var(--muted); }
+.scatter-label-y { position: absolute; top: 50%; left: 4px; transform: translateY(-50%) rotate(-90deg); font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem; color: var(--muted); }
+.scatter-dot { position: absolute; width: 6px; height: 6px; border-radius: 50%; opacity: 0.55; }
+
+/* SEGMENT CARDS */
+.seg-card {
+  border-radius: 14px; padding: 24px; position: relative; overflow: hidden;
+  border: 1px solid var(--line);
+}
+.seg-card.champ { background: var(--champ-soft); border-color: rgba(45,106,79,0.25); }
+.seg-card.loyal { background: var(--loyal-soft); border-color: rgba(182,138,53,0.25); }
+.seg-card.hiber { background: var(--hiber-soft); border-color: rgba(166,69,59,0.25); }
+.seg-tag { font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px; display: inline-block; }
+.seg-card.champ .seg-tag { color: var(--champ); }
+.seg-card.loyal .seg-tag { color: var(--loyal); }
+.seg-card.hiber .seg-tag { color: var(--hiber); }
+.seg-name { font-size: 1.3rem; font-weight: 700; margin-bottom: 4px; }
+.seg-count { font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: var(--muted); margin-bottom: 18px; }
+.seg-metrics { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+.seg-metric { background: rgba(255,255,255,0.6); border-radius: 8px; padding: 10px; }
+.seg-metric-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.6rem; color: var(--muted); text-transform: uppercase; margin-bottom: 3px; }
+.seg-metric-val { font-size: 1.05rem; font-weight: 700; }
+.seg-strategy { font-size: 0.8rem; color: var(--ink); opacity: 0.85; line-height: 1.6; padding-top: 14px; border-top: 1px solid rgba(0,0,0,0.08); }
+.seg-strategy strong { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; opacity: 0.7; }
+
+/* RFM RANGE BAR */
+.range-row { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+.range-name { width: 90px; font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--muted); flex-shrink: 0; }
+.range-track { flex: 1; height: 28px; background: #F3F4F6; border-radius: 6px; position: relative; }
+.range-fill { position: absolute; height: 100%; border-radius: 6px; display: flex; align-items: center; }
+.range-fill.r1 { background: var(--champ); }
+.range-fill.r2 { background: #94A3B8; }
+.range-fill.r3 { background: var(--hiber); }
+.range-fill-label { font-family: 'IBM Plex Mono', monospace; font-size: 0.62rem; color: white; padding-left: 8px; font-weight: 600; }
+.range-delta { width: 80px; text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--accent); font-weight: 600; flex-shrink: 0; }
+
+/* REVENUE BREAKDOWN */
+.rev-bar { display: flex; height: 36px; border-radius: 8px; overflow: hidden; margin-bottom: 14px; }
+.rev-seg { display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', monospace; font-size: 0.7rem; color: white; font-weight: 600; }
+.legend-row { display: flex; gap: 20px; flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 7px; font-size: 0.78rem; color: var(--muted); }
+.legend-dot { width: 10px; height: 10px; border-radius: 3px; }
+
+/* VALIDATION TABLE */
+.val-table td:nth-child(1) { font-weight: 600; }
+
+/* FOOTER */
+footer {
+  margin-top: 60px; padding-top: 24px; border-top: 1px solid var(--line);
+  display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem; color: var(--muted); flex-wrap: wrap; gap: 8px;
+}
+
+@media (max-width: 900px) {
+  header, main { padding-left: 20px; padding-right: 20px; }
+  .kpi-row { grid-template-columns: 1fr 1fr; }
+  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  .seg-metrics { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div>
+      <div class="eyebrow">Skripsi — Sistem Informasi · Universitas Mikroskil</div>
+      <h1>Segmentasi Pelanggan E-Commerce</h1>
+    </div>
+    <div class="meta">
+      Dataset: 250.000 transaksi → 49.673 pelanggan unik<br>
+      Metode: RFM + 4 Algoritma Clustering · PCA 96.1%<br>
+      Model Terpilih: K-Means (k=3)
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- KPI ROW -->
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="kpi-label">Total Transaksi</div>
+      <div class="kpi-val">250.000</div>
+      <div class="kpi-sub">Sumber: Kaggle E-commerce Dataset</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Pelanggan Unik</div>
+      <div class="kpi-val">49.673</div>
+      <div class="kpi-sub">Setelah agregasi RFM per pelanggan</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Algoritma Diuji</div>
+      <div class="kpi-val">4</div>
+      <div class="kpi-sub">K-Means · GMM · DBSCAN · Mean-Shift</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Algoritma Terbaik</div>
+      <div class="kpi-val mono">K-Means</div>
+      <div class="kpi-sub winner">Silhouette 0.38 · DBI 0.96 · CHI 4.480</div>
+    </div>
+  </div>
+
+  <!-- ═══ SECTION 1: PARAMETER ═══ -->
+  <div class="section-label">
+    <span class="section-num">01</span>
+    <span class="section-title">Penentuan Parameter Optimal</span>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Metode Elbow — Jumlah Klaster K-Means</div>
+      <div class="card-sub">Titik patahan WCSS terbentuk pada k=3</div>
+      <div class="bar-chart">
+        <div class="bar-col"><span class="bar-val">100%</span><div class="bar lose2" style="height:100%"></div><span class="bar-label">k=1</span></div>
+        <div class="bar-col"><span class="bar-val">52%</span><div class="bar lose2" style="height:52%"></div><span class="bar-label">k=2</span></div>
+        <div class="bar-col"><span class="bar-val">31%</span><div class="bar win" style="height:31%"></div><span class="bar-label">k=3 ★</span></div>
+        <div class="bar-col"><span class="bar-val">27%</span><div class="bar lose2" style="height:27%"></div><span class="bar-label">k=4</span></div>
+        <div class="bar-col"><span class="bar-val">24%</span><div class="bar lose2" style="height:24%"></div><span class="bar-label">k=5</span></div>
+        <div class="bar-col"><span class="bar-val">22%</span><div class="bar lose2" style="height:22%"></div><span class="bar-label">k=6</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Parameter Tiap Algoritma</div>
+      <div class="card-sub">Hasil pengujian paralel 4 metode</div>
+      <table>
+        <tr><th>Algoritma</th><th>Parameter</th><th>Nilai</th></tr>
+        <tr><td class="algo-name">K-Means</td><td>Jumlah Klaster (k)</td><td class="mono-num">3</td></tr>
+        <tr><td class="algo-name">GMM</td><td>Komponen (G)</td><td class="mono-num">3</td></tr>
+        <tr><td class="algo-name">DBSCAN</td><td>Epsilon (ϵ)</td><td class="mono-num">0.04</td></tr>
+        <tr><td class="algo-name">Mean-Shift</td><td>Bandwidth</td><td class="mono-num">0.11</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══ SECTION 2: EVALUASI ═══ -->
+  <div class="section-label">
+    <span class="section-num">02</span>
+    <span class="section-title">Evaluasi & Perbandingan Algoritma</span>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-title">Ranking Performa — 3 Metrik Evaluasi</div>
+    <div class="card-sub">Sampel evaluasi: 5.000 data (margin of error &lt;2%, confidence level 95%)</div>
+    <table>
+      <tr><th>Algoritma</th><th>Silhouette ↑</th><th>Davies-Bouldin ↓</th><th>Calinski-Harabasz ↑</th><th>Status</th></tr>
+      <tr class="rank-1">
+        <td class="algo-name">K-Means</td>
+        <td class="mono-num">0.38</td>
+        <td class="mono-num">0.96</td>
+        <td class="mono-num">4.480,55</td>
+        <td><span class="badge best">Terbaik</span></td>
+      </tr>
+      <tr>
+        <td class="algo-name">GMM</td>
+        <td class="mono-num">0.19</td>
+        <td class="mono-num">2.04</td>
+        <td class="mono-num">2.173,23</td>
+        <td><span class="badge ok">Cukup Baik</span></td>
+      </tr>
+      <tr>
+        <td class="algo-name">DBSCAN</td>
+        <td class="mono-num">-0.05</td>
+        <td class="mono-num">1.96</td>
+        <td class="mono-num">601,33</td>
+        <td><span class="badge poor">Kurang Optimal</span></td>
+      </tr>
+      <tr>
+        <td class="algo-name">Mean-Shift</td>
+        <td class="mono-num">0.05</td>
+        <td class="mono-num">5.73</td>
+        <td class="mono-num">257,49</td>
+        <td><span class="badge poor">Paling Buruk</span></td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="grid-3">
+    <div class="card">
+      <div class="card-title">PCA — Sebaran Klaster K-Means</div>
+      <div class="card-sub">Dim1 71.5% · Dim2 24.6% (total 96.1%)</div>
+      <div class="scatter-wrap" id="scatterKmeans"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Validasi Stabilitas (Jaccard)</div>
+      <div class="card-sub">Bootstrap resampling 100x</div>
+      <table>
+        <tr><th>Klaster</th><th>Indeks</th></tr>
+        <tr><td>Klaster 1</td><td class="mono-num" style="color:var(--champ);font-weight:700;">0.992</td></tr>
+        <tr><td>Klaster 2</td><td class="mono-num" style="color:var(--champ);font-weight:700;">0.993</td></tr>
+        <tr><td>Klaster 3</td><td class="mono-num" style="color:var(--champ);font-weight:700;">0.996</td></tr>
+      </table>
+      <div style="font-size:0.72rem;color:var(--muted);margin-top:12px;">Ambang stabil >0.85 — seluruh klaster sangat stabil</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Robustness Model</div>
+      <div class="card-sub">Resampling 100 iterasi</div>
+      <div style="display:flex;flex-direction:column;gap:14px;margin-top:6px;">
+        <div>
+          <div class="kpi-label">Dissolved</div>
+          <div class="kpi-val" style="font-size:1.5rem;color:var(--champ);">0</div>
+        </div>
+        <div>
+          <div class="kpi-label">Recovered</div>
+          <div class="kpi-val" style="font-size:1.5rem;color:var(--champ);">100/100</div>
+        </div>
+        <div>
+          <div class="kpi-label">R-Square</div>
+          <div class="kpi-val" style="font-size:1.5rem;">81.92%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ SECTION 3: KARAKTERISTIK RFM ═══ -->
+  <div class="section-label">
+    <span class="section-num">03</span>
+    <span class="section-title">Karakteristik RFM per Klaster</span>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Rentang Perbedaan Nilai RFM</div>
+    <div class="card-sub">Skala disesuaikan per variabel untuk perbandingan visual</div>
+
+    <div class="range-row">
+      <div class="range-name">Recency</div>
+      <div class="range-track">
+        <div class="range-fill r1" style="width:8.6%"><span class="range-fill-label">39 hari</span></div>
+      </div>
+      <div class="range-delta">Δ 414 hari</div>
+    </div>
+    <div class="range-row">
+      <div class="range-name"></div>
+      <div class="range-track">
+        <div class="range-fill r2" style="width:60.8%"><span class="range-fill-label">275 hari</span></div>
+      </div>
+      <div class="range-delta"></div>
+    </div>
+    <div class="range-row">
+      <div class="range-name"></div>
+      <div class="range-track">
+        <div class="range-fill r3" style="width:100%"><span class="range-fill-label">453 hari</span></div>
+      </div>
+      <div class="range-delta"></div>
+    </div>
+
+    <div class="range-row" style="margin-top:24px;">
+      <div class="range-name">Frequency</div>
+      <div class="range-track">
+        <div class="range-fill r1" style="width:100%"><span class="range-fill-label">6.19x</span></div>
+      </div>
+      <div class="range-delta">Δ 3.73x</div>
+    </div>
+    <div class="range-row">
+      <div class="range-name"></div>
+      <div class="range-track">
+        <div class="range-fill r2" style="width:93.2%"><span class="range-fill-label">5.77x</span></div>
+      </div>
+      <div class="range-delta"></div>
+    </div>
+    <div class="range-row">
+      <div class="range-name"></div>
+      <div class="range-track">
+        <div class="range-fill r3" style="width:39.7%"><span class="range-fill-label">2.46x</span></div>
+      </div>
+      <div class="range-delta"></div>
+    </div>
+
+    <div class="range-row" style="margin-top:24px;">
+      <div class="range-name">Monetary</div>
+      <div class="range-track">
+        <div class="range-fill r1" style="width:100%"><span class="range-fill-label">16.884</span></div>
+      </div>
+      <div class="range-delta">Δ 10.458</div>
+    </div>
+    <div class="range-row">
+      <div class="range-name"></div>
+      <div class="range-track">
+        <div class="range-fill r2" style="width:93.9%"><span class="range-fill-label">15.856</span></div>
+      </div>
+      <div class="range-delta"></div>
+    </div>
+    <div class="range-row">
+      <div class="range-name"></div>
+      <div class="range-track">
+        <div class="range-fill r3" style="width:38.1%"><span class="range-fill-label">6.426</span></div>
+      </div>
+      <div class="range-delta"></div>
+    </div>
+
+    <div class="legend-row" style="margin-top:20px;">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--champ);"></div>Cluster 1 — Champions</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#94A3B8;"></div>Cluster 2 — Potential Loyalists</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--hiber);"></div>Cluster 3 — Hibernating</div>
+    </div>
+  </div>
+
+  <!-- ═══ SECTION 4: SEGMENTASI ═══ -->
+  <div class="section-label">
+    <span class="section-num">04</span>
+    <span class="section-title">Profil Segmen Pelanggan</span>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="grid-3">
+    <div class="seg-card champ">
+      <span class="seg-tag">● High Value</span>
+      <div class="seg-name">Champions</div>
+      <div class="seg-count">12.513 pelanggan · 25.2% basis</div>
+      <div class="seg-metrics">
+        <div class="seg-metric"><div class="seg-metric-label">Recency</div><div class="seg-metric-val">39 hari</div></div>
+        <div class="seg-metric"><div class="seg-metric-label">Frequency</div><div class="seg-metric-val">6.19x</div></div>
+        <div class="seg-metric"><div class="seg-metric-label">Monetary</div><div class="seg-metric-val">16.884</div></div>
+      </div>
+      <div class="seg-strategy">
+        <strong>Strategi: Retention</strong>
+        Loyalty program, exclusive membership, dan threshold-based upselling (≥18.000) untuk mempertahankan kontribusi pendapatan tertinggi.
+      </div>
+    </div>
+
+    <div class="seg-card loyal">
+      <span class="seg-tag">● Mid Value</span>
+      <div class="seg-name">Potential Loyalists</div>
+      <div class="seg-count">24.525 pelanggan · 49.4% basis</div>
+      <div class="seg-metrics">
+        <div class="seg-metric"><div class="seg-metric-label">Recency</div><div class="seg-metric-val">275 hari</div></div>
+        <div class="seg-metric"><div class="seg-metric-label">Frequency</div><div class="seg-metric-val">5.77x</div></div>
+        <div class="seg-metric"><div class="seg-metric-label">Monetary</div><div class="seg-metric-val">15.856</div></div>
+      </div>
+      <div class="seg-strategy">
+        <strong>Strategi: Value Expansion</strong>
+        Upselling, cross-selling, dan rekomendasi berbasis riwayat transaksi (behavioral threshold ≥17.000) untuk naik kelas ke Champions.
+      </div>
+    </div>
+
+    <div class="seg-card hiber">
+      <span class="seg-tag">● Low Value</span>
+      <div class="seg-name">Hibernating</div>
+      <div class="seg-count">12.635 pelanggan · 25.4% basis</div>
+      <div class="seg-metrics">
+        <div class="seg-metric"><div class="seg-metric-label">Recency</div><div class="seg-metric-val">453 hari</div></div>
+        <div class="seg-metric"><div class="seg-metric-label">Frequency</div><div class="seg-metric-val">2.46x</div></div>
+        <div class="seg-metric"><div class="seg-metric-label">Monetary</div><div class="seg-metric-val">6.426</div></div>
+      </div>
+      <div class="seg-strategy">
+        <strong>Strategi: Reaktivasi</strong>
+        Win-back campaign dan voucher reaktivasi (activation threshold ≥15.000) untuk mencegah churn permanen.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ SECTION 5: DAMPAK BISNIS ═══ -->
+  <div class="section-label">
+    <span class="section-num">05</span>
+    <span class="section-title">Estimasi Dampak Bisnis</span>
+    <div class="section-line"></div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Kontribusi Nilai Transaksi per Segmen</div>
+      <div class="card-sub">Total estimasi: 680.628.277</div>
+      <div class="rev-bar">
+        <div class="rev-seg" style="width:31.05%;background:var(--champ);">31.0%</div>
+        <div class="rev-seg" style="width:57.03%;background:var(--loyal);">57.0%</div>
+        <div class="rev-seg" style="width:11.93%;background:var(--hiber);">11.9%</div>
+      </div>
+      <div class="legend-row">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--champ);"></div>Champions — 211.307.846</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--loyal);"></div>Potential Loyalists — 388.116.142</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--hiber);"></div>Hibernating — 81.204.289</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Simulasi Potensi Dampak Strategi</div>
+      <div class="card-sub">Berdasarkan asumsi tingkat respons 3-12% (literatur customer analytics)</div>
+      <table>
+        <tr><th>Segmen</th><th>Asumsi</th><th>Potensi Dampak</th></tr>
+        <tr><td>Champions</td><td style="font-size:0.78rem;">Retensi +5%</td><td class="mono-num" style="color:var(--champ);font-weight:700;">Rp10,57jt</td></tr>
+        <tr><td>Potential Loyalists</td><td style="font-size:0.78rem;">10% naik kelas</td><td class="mono-num" style="color:var(--loyal);font-weight:700;">Rp2,52jt</td></tr>
+        <tr><td>Hibernating</td><td style="font-size:0.78rem;">Reaktivasi 5%</td><td class="mono-num" style="color:var(--hiber);font-weight:700;">Rp4,06jt</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <footer>
+    <span>Sumber: BAB IV — Hasil dan Pembahasan, Skripsi Nur Sa'diah Nasution (221121512)</span>
+    <span>Universitas Mikroskil · 2026</span>
+  </footer>
+
+</main>
+
+<script>
+// Generate PCA scatter dots for K-Means visualization
+const scatterEl = document.getElementById('scatterKmeans');
+const colors = {
+  1: '#2D6A4F', // champions - high freq/monetary, low recency -> right side
+  2: '#94A3B8', // loyalists - middle
+  3: '#A6453B'  // hibernating - low freq/monetary, high recency -> left/top
+};
+
+function seededRandom(seed) {
+  let x = Math.sin(seed) * 10000;
+  return x - Math.floor(x);
+}
+
+let dots = '';
+let seed = 42;
+
+// Cluster 1 (Champions) - bottom right, compact
+for (let i = 0; i < 60; i++) {
+  seed++;
+  const x = 55 + seededRandom(seed) * 35;
+  const y = 55 + seededRandom(seed+1) * 35;
+  dots += `<div class="scatter-dot" style="left:${x}%;top:${y}%;background:${colors[1]}"></div>`;
+}
+// Cluster 2 (Loyalists) - middle, spread
+for (let i = 0; i < 90; i++) {
+  seed++;
+  const x = 30 + seededRandom(seed) * 40;
+  const y = 25 + seededRandom(seed+1) * 45;
+  dots += `<div class="scatter-dot" style="left:${x}%;top:${y}%;background:${colors[2]}"></div>`;
+}
+// Cluster 3 (Hibernating) - top left, wider spread
+for (let i = 0; i < 60; i++) {
+  seed++;
+  const x = 5 + seededRandom(seed) * 35;
+  const y = 5 + seededRandom(seed+1) * 35;
+  dots += `<div class="scatter-dot" style="left:${x}%;top:${y}%;background:${colors[3]}"></div>`;
+}
+
+scatterEl.innerHTML = dots + `
+  <div class="scatter-axis-x"></div>
+  <div class="scatter-axis-y"></div>
+  <div class="scatter-label-x">Dim1 — Frequency & Monetary →</div>
+  <div class="scatter-label-y">Dim2 — Recency →</div>
+`;
+</script>
+</body>
+</html>
