@@ -1,0 +1,1122 @@
+---
+title: "Untitled"
+author: "untitled"
+date: "2026-04-10"
+output: html_document
+---
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(readxl)
+library (tidyverse)
+library(corrplot)
+ecommerce <- read_xlsx("ecommerce.xlsx")
+
+```
+
+```{r}
+summary(ecommerce)
+glimpse(ecommerce)
+```
+
+```{r}
+colSums(is.na(ecommerce))
+```
+
+```{r}
+ecommerce_clean <- ecommerce %>%
+  mutate(Returns = ifelse(is.na(Returns), 0, Returns))
+
+colSums(is.na(ecommerce_clean))
+```
+
+```{r}
+
+
+ecommerce_clean <- ecommerce_clean  %>%
+  mutate(
+    # 1. Mengubah ID menjadi Karakter
+    CustomerID = as.character(CustomerID),
+    
+    # 2. Mengubah variabel teks menjadi Factor
+    ProductCategory = as.factor(ProductCategory),
+    PaymentMethod = as.factor(PaymentMethod),
+    Gender = as.factor(Gender),
+    
+    # 3. Mengubah variabel biner menjadi Factor
+    Churn = as.factor(Churn),
+    
+    # 4. Memperbaiki variabel Returns (Jika NA diartikan tidak retur)
+    # Sesuaikan dengan instruksi sebelumnya: NA diubah jadi 0
+    Returns = ifelse(is.na(Returns), 0, 1), # Mengubah format tanggal aneh menjadi 0 atau 1
+    Returns = as.factor(Returns)
+  )
+
+glimpse(ecommerce_clean)
+
+```
+```{r}
+ecommerce_clean %>% 
+  filter(duplicated(.))
+```
+```{r}
+# Menampilkan 10 baris pertama untuk kolom CustomerAge dan Age
+ecommerce %>% 
+  select(CustomerAge, Age) %>% 
+  head(10)
+# Membandingkan ringkasan statistik kedua kolom
+summary(ecommerce$CustomerAge)
+summary(ecommerce$Age)
+# Menghitung berapa banyak baris yang nilainya BERBEDA
+# Jika hasilnya 0, berarti keduanya 100% sama
+sum(ecommerce$CustomerAge != ecommerce$Age, na.rm = TRUE)
+```
+
+
+```{r}
+# Memanggil library
+library(dplyr)
+
+# Menghapus kolom CustomerAge dari dataset ecommerce_clean
+ecommerce_clean <- ecommerce_clean %>%
+  select(-CustomerAge)
+
+# Verifikasi: Melihat daftar nama kolom yang tersisa
+colnames(ecommerce_clean)
+```
+
+```{r}
+# Memilih variabel numerik utama untuk dianalisis
+data.num <- ecommerce_clean %>% 
+  select(TotalPurchaseAmount, ProductPrice, Quantity, Age)
+
+# Menampilkan statistik deskriptif
+summary(data.num)
+```
+
+
+```{r}
+# 1. Pastikan library yang dibutuhkan aktif
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+# 2. Membuat plot distribusi frekuensi variabel numerik
+ecommerce %>%
+  # Memilih variabel numerik utama sesuai gambar
+  select(Age, ProductPrice, Quantity, TotalPurchaseAmount) %>%
+  # Mengubah data menjadi format long agar bisa di-facet
+  pivot_longer(cols = everything(), names_to = "Variabel", values_to = "Nilai") %>%
+  ggplot(aes(x = Nilai)) +
+  # Menggunakan geom_histogram dengan warna gelap sesuai referensi
+  geom_histogram(bins = 30, fill = "#2c3e50", color = "white") +
+  # Membagi plot menjadi 4 bagian berdasarkan nama variabel
+  facet_wrap(~Variabel, scales = "free") +
+  theme_minimal() +
+  labs(
+    title = "Distribusi Frekuensi Variabel Numerik E-Commerce",
+    subtitle = "Dataset: ecommerce_customer_data_custom_ratios.csv",
+    x = "Nilai Variabel",
+    y = "Jumlah Frekuensi"
+  ) +
+  # Menyesuaikan tampilan teks agar rapi
+  theme(
+    strip.text = element_text(face = "bold"),
+    plot.title = element_text(hjust = 0.5)
+  )
+```
+
+
+```{r}
+# Analisis untuk data angka
+summary(ecommerce_clean %>% select(Age, ProductPrice, Quantity, TotalPurchaseAmount))
+# Contoh melihat jumlah pelanggan berdasarkan Gender dan Kategori Produk
+table(ecommerce_clean$Gender)
+table(ecommerce_clean$ProductCategory)
+
+# Atau gunakan prop.table untuk melihat persentase (%)
+prop.table(table(ecommerce_clean$Gender)) * 100
+```
+
+
+
+```{r}
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+# Mengubah format data dari lebar (wide) ke panjang (long) agar bisa di-grid
+data.num %>%
+  pivot_longer(cols = everything(), names_to = "Variabel", values_to = "Nilai") %>%
+  ggplot(aes(x = Variabel, y = Nilai, fill = Variabel)) +
+  # geom_boxplot dengan warna fill profesional
+  geom_boxplot(outlier.colour = "red", outlier.shape = 8, outlier.size = 2) +
+  theme_minimal() +
+  labs(title = "Visualisasi Boxplot untuk Deteksi Outlier",
+       subtitle = "Variabel: ProductPrice, Quantity, TotalPurchaseAmount, dan Age",
+       x = "Variabel Numerik",
+       y = "Nilai") +
+  theme(legend.position = "none")
+```
+```{r}
+# 1. Membuat fungsi hitung.outliers berbasis metode IQR
+hitung.outliers <- function(x) {
+  # Menghitung kuartil pertama (Q1) dan ketiga (Q3) dari kolom x
+  Q1 <- quantile(x, 0.25, na.rm = TRUE)
+  Q3 <- quantile(x, 0.75, na.rm = TRUE)
+  
+  # Menghitung rentang interkuartil (IQR)
+  IQR <- Q3 - Q1
+  
+  # Menentukan batas bawah dan batas atas (Metode Tukey)
+  lower_bound <- Q1 - 1.5 * IQR
+  upper_bound <- Q3 + 1.5 * IQR
+  
+  # Mengembalikan jumlah data yang berada di luar batas tersebut
+  sum(x < lower_bound | x > upper_bound, na.rm = TRUE)
+}
+
+# 2. Menyeleksi variabel numerik utama untuk dianalisis
+# Hal ini dilakukan agar tidak tercampur dengan CustomerID (karakter) atau PurchaseDate (tanggal)
+data.num <- ecommerce_clean %>% select(TotalPurchaseAmount, ProductPrice, Quantity, Age)
+
+# 3. Menerapkan fungsi pada seluruh kolom numerik
+hasil_outliers <- sapply(data.num, hitung.outliers)
+hasil_outliers
+```
+
+```{r}
+library(ggplot2)
+
+#  Boxplot Variabel Age ---
+ggplot(ecommerce_clean, aes(y = Age)) +
+  geom_boxplot(fill = "#3498db", color = "#2c3e50", width = 0.5) +
+  theme_minimal() +
+  labs(title = "Distribusi dan Deteksi Pencilan: Variabel Age",
+       subtitle = "Metode: Interquartile Range (IQR)",
+       y = "Usia (Tahun)")
+
+#  Boxplot Variabel Product Price ---
+ggplot(ecommerce_clean, aes(y = ProductPrice)) +
+  geom_boxplot(fill = "#e67e22", color = "#d35400", width = 0.5) +
+  theme_minimal() +
+  labs(title = "Distribusi dan Deteksi Pencilan: Variabel Product Price",
+       subtitle = "Metode: Interquartile Range (IQR)",
+       y = "Harga Produk")
+
+#  Boxplot Variabel Quantity ---
+ggplot(ecommerce_clean, aes(y = Quantity)) +
+  geom_boxplot(fill = "#2ecc71", color = "#27ae60", width = 0.5) +
+  theme_minimal() +
+  labs(title = "Distribusi dan Deteksi Pencilan: Variabel Quantity",
+       subtitle = "Metode: Interquartile Range (IQR)",
+       y = "Jumlah Unit")
+
+#  Boxplot Variabel Total Purchase Amount ---
+ggplot(ecommerce_clean, aes(y = TotalPurchaseAmount)) +
+  geom_boxplot(fill = "#9b59b6", color = "#8e44ad", width = 0.5) +
+  theme_minimal() +
+  labs(title = "Distribusi dan Deteksi Pencilan: Variabel Total Purchase Amount",
+       subtitle = "Metode: Interquartile Range (IQR)",
+       y = "Total Transaksi")
+```
+
+
+```{r}
+# 1. Memastikan library aktif
+library(dplyr)
+library(ggcorrplot)
+
+# 2. Tahap Transformasi: Mengubah Kategorikal & Biner menjadi Numerik
+data_korelasi_lengkap <- ecommerce_clean %>%
+  mutate(
+    # Konversi variabel biner (Churn & Returns)
+    Churn = as.numeric(as.character(Churn)),
+    Returns = as.numeric(as.character(Returns)),
+    
+    # Konversi Kategorikal (Label Encoding) agar menjadi angka
+    # Gender: Male = 1, Female = 2 (atau sebaliknya)
+    Gender_Num = as.numeric(as.factor(Gender)),
+    
+    # ProductCategory & PaymentMethod diubah menjadi angka berdasarkan kategorinya
+    ProductCategory_Num = as.numeric(as.factor(ProductCategory)),
+    PaymentMethod_Num = as.numeric(as.factor(PaymentMethod))
+  ) %>%
+  # 3. Seleksi variabel numerik akhir untuk Heatmap
+  select(
+    ProductPrice, 
+    Quantity, 
+    TotalPurchaseAmount, 
+    Age, 
+    Churn, 
+    Returns,
+    Gender_Num,
+    ProductCategory_Num,
+    PaymentMethod_Num
+  )
+
+# 4. Hitung Matriks Korelasi
+# Menggunakan use = "complete.obs" untuk menangani Missing Values (NA)
+cor_matrix <- cor(data_korelasi_lengkap, use = "complete.obs")
+
+# 5. Visualisasi Heatmap Korelasi
+ggcorrplot(cor_matrix, 
+           type = "lower", 
+           lab = TRUE, 
+           lab_size = 3, 
+           colors = c("#e74c3c", "white", "#3498db"), 
+           title = "Matriks Korelasi Seluruh Variabel  ",
+           ggtheme = theme_minimal())
+```
+
+```{r}
+# 1. Menyiapkan data korelasi (Pastikan variabel kategorikal sudah di-numerikkan)
+data_korelasi <- ecommerce_clean %>%
+  mutate(
+    Gender_Num = as.numeric(as.factor(Gender)),
+    Category_Num = as.numeric(as.factor(ProductCategory)),
+    Payment_Num = as.numeric(as.factor(PaymentMethod)),
+    Churn_Num = as.numeric(as.factor(Churn)),
+    Returns_Num = as.numeric(as.factor(Returns))
+  ) %>%
+  # Pilih variabel yang benar-benar memiliki variasi angka
+  select(Age, ProductPrice, Quantity, TotalPurchaseAmount, 
+         Gender_Num, Category_Num, Payment_Num, Churn_Num, Returns_Num)
+
+# 2. Menghitung Matriks Korelasi
+corr_matrix <- cor(data_korelasi, use = "complete.obs")
+
+# 3. Menampilkan Heatmap (Ubah hc.order menjadi FALSE jika error berlanjut)
+library(ggcorrplot)
+ggcorrplot(corr_matrix, 
+           hc.order = FALSE, # Diubah menjadi FALSE untuk menghindari error hclust
+           type = "lower",
+           lab = TRUE, 
+           lab_size = 3, 
+           method = "square", 
+           colors = c("#e74c3c", "white", "#3498db"), 
+           title = "Matriks Korelasi Variabel E-Commerce",
+           ggtheme = theme_minimal())
+```
+
+
+```{r}
+data_final_norm <- data_rfm %>%
+  mutate(
+    R_norm = (Recency - min(Recency)) / (max(Recency) - min(Recency)),
+    F_norm = (Frequency - min(Frequency)) / (max(Frequency) - min(Frequency)),
+    M_norm = (Monetary - min(Monetary)) / (max(Monetary) - min(Monetary))
+  )
+
+
+head(data_final_norm %>% select(CustomerID, R_norm, F_norm, M_norm))
+# Simpan hanya kolom numerik untuk input algoritma (tanpa CustomerID)
+data_input_model <- data_final_norm %>% 
+  select(R_norm, F_norm, M_norm)
+```
+
+```{r}
+
+
+
+# Tanggal Analisis (Reference Date)
+# ambil satu hari setelah transaksi terakhir yang ada di seluruh dataset
+tanggal_analisis <- max(ecommerce_clean$PurchaseDate) + 1
+
+#  Transformasi RFM
+data_rfm <- ecommerce_clean %>%
+  group_by(CustomerID) %>%
+  summarise(
+    # Recency: Selisih hari antara tanggal analisis dan tanggal terakhir belanja
+    Recency = as.numeric(tanggal_analisis - max(PurchaseDate)),
+    
+    # Frequency: Menghitung berapa kali CustomerID muncul (jumlah transaksi)
+    Frequency = n(),
+  
+    # : Total uang yang dikeluarkan (jumlahkan kolom TotalPurchaseAmount)
+    Monetary = sum(TotalPurchaseAmount)
+  )
+
+#hasil transformasi
+head(data_rfm)
+summary(data_rfm)
+# Simpan hanya kolom numerik untuk input algoritma (tanpa CustomerID)
+data_input_model <- data_final_norm %>% 
+  select(R_norm, F_norm, M_norm)
+ 
+```
+```{r}
+# 1. Log Transformation (tambahkan +1 untuk menghindari log(0))
+data_rfm$R_log <- log10(data_rfm$Recency + 1)
+data_rfm$F_log <- log10(data_rfm$Frequency + 1)
+data_rfm$M_log <- log10(data_rfm$Monetary + 1)
+
+# 2. Baru lakukan Normalisasi (Min-Max) pada hasil log tersebut
+library(caret)
+process <- preProcess(data_rfm[,c("R_log", "F_log", "M_log")], method=c("range"))
+data_final <- predict(process, data_rfm[,c("R_log", "F_log", "M_log")])
+
+# Cek hasilnya
+summary(data_final)
+```
+```{r}
+# Load library yang dibutuhkan
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(patchwork)
+
+# 1. Menyiapkan data sebelum log (Data Asli)
+data_sebelum <- data_rfm %>%
+  select(Recency, Frequency, Monetary) %>%
+  pivot_longer(cols = everything(), names_to = "Metric", values_to = "Value")
+
+# Plot Distribusi SEBELUM Log
+p1 <- ggplot(data_sebelum, aes(x = Value, fill = Metric)) +
+  geom_density(alpha = 0.5) +
+  facet_wrap(~Metric, scales = "free") +
+  theme_minimal() +
+  labs(title = "Distribusi RFM Sebelum Log Transformation", x = "Nilai Asli", y = "Density") +
+  theme(legend.position = "none")
+
+# 2. Melakukan Log Transformation
+data_sesudah_df <- data_rfm %>%
+  mutate(
+    Recency = log10(Recency + 1),
+    Frequency = log10(Frequency + 1),
+    Monetary = log10(Monetary + 1)
+  ) %>%
+  select(Recency, Frequency, Monetary) %>%
+  pivot_longer(cols = everything(), names_to = "Metric", values_to = "Value")
+
+# Plot Distribusi SESUDAH Log
+p2 <- ggplot(data_sesudah_df, aes(x = Value, fill = Metric)) +
+  geom_density(alpha = 0.5) +
+  facet_wrap(~Metric, scales = "free") +
+  theme_minimal() +
+  labs(title = "Distribusi RFM Sesudah Log Transformation", x = "Nilai Log10", y = "Density") +
+  theme(legend.position = "none")
+
+# 3. Menampilkan kedua grafik secara berdampingan (Atas-Bawah)
+p1 / p2
+```
+
+```{r}
+# Memuat library
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# 1. Visualisasi Distribusi untuk TotalPurchaseAmount dan Age
+ecommerce_clean %>%
+  select(TotalPurchaseAmount, Age) %>%
+  pivot_longer(cols = everything(), names_to = "Variabel", values_to = "Nilai") %>%
+  ggplot(aes(x = Nilai)) +
+  # Histogram dengan Density Plot
+  geom_histogram(aes(y = ..density..), bins = 30, fill = "#34495e", color = "white", alpha = 0.7) +
+  geom_density(color = "#e74c3c", size = 1) +
+  facet_wrap(~Variabel, scales = "free") +
+  theme_minimal() +
+  labs(title = "Analisis Distribusi: Histogram & Density Plot",
+       subtitle = "Mengecek Kemiringan (Skewness) Data Pelanggan",
+       x = "Nilai",
+       y = "Densitas")
+summary(ecommerce_clean$Age)
+```
+```{r}
+summary(ecommerce_clean$TotalPurchaseAmount)
+```
+
+```{r echo=FALSE}
+# Memuat library yang diperlukan
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+
+# 1. Menyiapkan data tren bulanan
+# Mengelompokkan transaksi berdasarkan bulan dan tahun
+tren_bulanan <- ecommerce_clean %>%
+  mutate(Bulan_Tahun = floor_date(as.Date(PurchaseDate), "month")) %>%
+  group_by(Bulan_Tahun) %>%
+  summarise(Total_Transaksi = n())
+
+# 2. Membuat Grafik Garis (Line Chart)
+ggplot(tren_bulanan, aes(x = Bulan_Tahun, y = Total_Transaksi)) +
+  geom_line(color = "#2c3e50", size = 1) + # Garis utama
+  geom_point(color = "#e74c3c", size = 2) + # Titik data setiap bulan
+  theme_minimal() +
+  labs(
+    title = "Tren Frekuensi Transaksi E-Commerce per Bulan",
+    subtitle = "Visualisasi untuk Validasi Dimensi Recency dan Perilaku Pelanggan",
+    x = "Periode (Bulan-Tahun)",
+    y = "Jumlah Transaksi"
+  ) +
+  scale_x_date(date_labels = "%b %Y", date_breaks = "3 month") # Format label sumbu X
+
+
+```
+```{r}
+# Memuat library
+library(dplyr)
+library(lubridate)
+
+# 3. Visualisasi sederhana distribusi transaksi per tanggal
+library(ggplot2)
+ggplot(ecommerce_clean, aes(x = PurchaseDate)) +
+  geom_histogram(bins = 50, fill = "steelblue", color = "white") +
+  theme_minimal() +
+  labs(title = "Distribusi Waktu Transaksi", x = "Tanggal", y = "Frekuensi")
+
+# 1. Mengecek rentang waktu (Min & Max Date)
+date_range <- ecommerce_clean%>%
+  summary(
+    Tanggal_Awal = min(PurchaseDate),
+    Tanggal_Akhir = max(PurchaseDate),
+    Total_Hari = as.numeric(difftime(max(PurchaseDate), min(PurchaseDate), units = "days"))
+  )
+print(date_range)
+
+# 2. Uji Masa Depan (Mengecek jika ada tanggal melebihi hari ini)
+future_dates <- ecommerce_clean %>%
+  filter(PurchaseDate > Sys.time())
+print(paste("Jumlah transaksi di masa depan:", nrow(future_dates)))
+
+```
+
+```{r}
+# Memuat library yang diperlukan
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(patchwork) # Untuk menggabungkan grafik
+
+# 1. Pengecekan konsistensi teks (Menghindari "Home" vs "home")
+# Mengubah semua teks menjadi format Proper Case agar seragam
+ecommerce_clean <- ecommerce_clean %>%
+  mutate(
+    ProductCategory = stringr::str_to_title(ProductCategory),
+    PaymentMethod = stringr::str_to_title(PaymentMethod),
+    Gender = stringr::str_to_title(Gender)
+  )
+
+# 2. Membuat Bar Chart untuk Gender dengan sintaks terbaru
+p_gender <- ggplot(ecommerce_clean, aes(x = Gender, fill = Gender)) +
+  geom_bar() +
+  geom_text(stat='count', aes(label=after_stat(count)), vjust=-0.5, size=3) +
+  theme_minimal() +
+  scale_fill_manual(values = c("#3498db", "#e74c3c")) +
+  labs(title = "Distribusi Gender", x = "", y = "Frekuensi") +
+  theme(legend.position = "none")
+
+
+# 3. Membuat Bar Chart untuk Kategori Produk (Horizontal agar teks terbaca)
+p_product <- ggplot(ecommerce_clean, aes(x = reorder(ProductCategory, ProductCategory, function(x) + length(x)), fill = ProductCategory)) +
+  geom_bar() +
+  coord_flip() +
+  theme_minimal() +
+  labs(title = "Dominasi Kategori Produk", x = "Kategori", y = "Frekuensi") +
+  theme(legend.position = "none")
+
+# 4. Membuat Bar Chart untuk Metode Pembayaran
+p_payment <- ggplot(ecommerce_clean, aes(x = PaymentMethod, fill = PaymentMethod)) +
+  geom_bar() +
+  theme_minimal() +
+  labs(title = "Metode Pembayaran", x = "Metode", y = "Frekuensi") +
+  theme(legend.position = "none", axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Menggabungkan grafik dalam satu layout profesional untuk laporan
+(p_gender | p_payment) / p_product
+```
+```{r}
+# 1. Memanggil library yang diperlukan
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+
+# 2. Membuat Density Plot Overlay untuk membandingkan skala R, F, M
+data_final_norm %>%
+  # Memilih kolom yang sudah dinormalisasi
+  select(R_norm, F_norm, M_norm) %>%
+  # Mengubah format data menjadi long-format agar bisa dibandingkan dalam satu plot
+  pivot_longer(cols = everything(), names_to = "Metrik_Normal", values_to = "Nilai") %>%
+  ggplot(aes(x = Nilai, fill = Metrik_Normal, color = Metrik_Normal)) +
+  # Menggunakan geom_density dengan transparansi agar tumpang tindih terlihat jelas
+  geom_density(alpha = 0.3, size = 1) +
+  theme_minimal() +
+  scale_fill_brewer(palette = "Set1") +
+  scale_color_brewer(palette = "Set1") +
+  # Membatasi sumbu X hanya dari 0 sampai 1 sesuai karakteristik Min-Max Scaling
+  xlim(0, 1) + 
+  labs(
+    title = "Distribusi Metrik RFM Setelah Normalisasi Min-Max",
+    subtitle = "Menunjukkan kesetaraan skala variabel (0 - 1) untuk persiapan Clustering",
+    x = "Nilai Normalisasi",
+    y = "Kepadatan (Density)",
+    fill = "Metrik",
+    color = "Metrik"
+  ) +
+  theme(legend.position = "bottom")
+```
+```{r}
+# 1. Load Library
+library(ggplot2)
+library(patchwork) # Untuk menggabungkan plot
+
+# 2. Visualisasi Frequency (Merah)
+p1 <- ggplot(data_rfm, aes(x = Frequency)) +
+  geom_density(fill = "#e74c3c", alpha = 0.8) +
+  theme_minimal() +
+  labs(title = "Frequency", x = NULL, y = "Kepadatan (Density)")
+
+# 3. Visualisasi Monetary (Biru)
+p2 <- ggplot(data_rfm, aes(x = Monetary)) +
+  geom_density(fill = "#2980b9", alpha = 0.8) +
+  theme_minimal() +
+  labs(title = "Monetary", x = "Nilai Metrik", y = NULL)
+
+# 4. Visualisasi Recency (Hijau)
+p3 <- ggplot(data_rfm, aes(x = Recency)) +
+  geom_density(fill = "#27ae60", alpha = 0.8) +
+  theme_minimal() +
+  labs(title = "Recency", x = NULL, y = NULL)
+
+# 5. Menggabungkan ketiga plot dalam satu tampilan
+(p1 | p2 | p3) + 
+  plot_annotation(
+    title = 'Distribusi Frekuensi Metrik RFM Pelanggan',
+    subtitle = 'Visualisasi sebaran variabel Recency, Frequency, dan Monetary'
+  )
+```
+
+```{r}
+# 1. Update paket rlang ke versi terbaru
+install.packages("rlang")
+
+# 2. Setelah selesai install, restart R Studio kamu (peting!)
+# Caranya: Klik menu 'Session' -> 'Restart R'
+
+# --- MENCARI PARAMETER OPTIMAL 4 ALGORITMA ---
+# Library yang dibutuhkan
+library(cluster)    # Untuk Silhouette
+library(factoextra) # Untuk visualisasi Elbow
+library(mclust)     # Untuk GMM & BIC
+library(dbscan)     # Untuk DBSCAN K-Distance Plot
+library(meanShiftR)  # Untuk Mean-Shift
+
+# Menyiapkan Sampel Data (Representatif)
+set.seed(123)
+data_sample <- data_input_model[sample(nrow(data_input_model), 20000), ]
+set.seed(123)
+data_sample2 <- data_input_model[sample(nrow(data_input_model), 10000), ]
+
+# A. METODE ELBOW (Mencari Siku/WCSS )
+elbow <- fviz_nbclust(data_sample2, kmeans, method = "wss") +
+  labs(title = "Elbow Method (Mencari Siku)", 
+       x = "Jumlah Klaster (k)", 
+       y = "Total WCSS")
+print(elbow)
+```
+```{r}
+
+Silhouette <- fviz_nbclust(data_sample, kmeans, method = "silhouette") +
+  labs(title = "Silhouette Analysis (Mencari Nilai Tertinggi)", 
+       x = "Jumlah Klaster (k)", 
+       y = "Rata-rata Silhouette Width")
+
+print(Silhouette)
+
+
+```
+```{r}
+
+#  BIC UNTUK GMM (Parameter K )
+gmm_bic <- mclustBIC(data_sample, G = 1:10)
+summary(gmm_bic)
+plot(gmm_bic)
+ D# Cari nilai BIC yang paling rendah/optimal
+```
+```{r}
+
+# Menentukan MinPts (Aturan umum: Dimensi Data + 1 atau Dimensi * 2)
+# Karena RFM ada 3 variabel, gunakan MinPts = 6
+minpts_val <- 6
+
+# K-DISTANCE PLOT (Mencari Epsilon optimal)
+kNNdistplot(data_sample, k = minpts_val)
+abline(h = 0.5, col = "red", lty = 2) # Garis bantu untuk melihat 'knee' (siku)
+#  Epsilon adalah nilai di mana terjadi kenaikan tajam (knee) pada grafik
+
+```
+```{r}
+
+# Estimasi Bandwidth (KDE)
+# Bandwidth krusial agar tidak fragmen atau terlalu gabung
+bandwidth_est <- quantile(dist(data_sample), 0.2) 
+print(paste("Estimasi Bandwidth awal:", bandwidth_est))
+
+```
+
+```{r}
+
+# 1. Ambil sampel datanya dulu (5000 baris)
+set.seed(123)
+data_viz <- data_model_murni[sample(nrow(data_model_murni), 5000), ]
+
+# 2. Jalankan K-Means khusus untuk data sampel tersebut
+# Ini supaya jumlah label dan jumlah titik sama-sama 5000
+kmeans_viz <- kmeans(data_viz, centers = 3, nstart = 25)
+
+# 3. Sekarang panggil visualisasinya
+library(factoextra)
+fviz_cluster(kmeans_viz, data = data_viz,
+             geom = "point",
+             ellipse.type = "convex", 
+             ggtheme = theme_bw(),
+             main = "Gambar 4.5: Visualisasi Klaster K-Means (k=3)")
+
+```
+
+```{r}
+
+# 1. mengambil kolom angka (R_norm, F_norm, M_norm)
+# buat variabel baru khusus untuk DBSCAN agar aman
+data_dbscan_input <- data_model_murni[, c("R_norm", "F_norm", "M_norm")]
+
+# 3. Jalankan DBSCAN (Hanya pada data_viz_db yang sudah pasti angka semua)
+library(dbscan)
+dbscan_result <- dbscan(data_viz, eps = 0.04, minPts = 6)
+
+# 4. Visualisasi 
+library(factoextra)
+fviz_cluster(dbscan_result, data = data_viz,
+             geom = "point",
+             ellipse = FALSE, 
+             show.clust.cent = FALSE, 
+             ggtheme = theme_bw(),
+             main = " Visualisasi Klaster DBSCAN")
+```
+```{r}
+
+
+library(mclust)
+library(factoextra)
+data_model_murni <- data_input_model[, c("R_norm", "F_norm", "M_norm")]
+
+
+# GMM dengan jumlah komponen G=3
+# GMM di mclust menggunakan fungsi Mclust
+gmm_result <- Mclust(data_viz, G = 3)
+
+# 3. Visualisasi menggunakan fviz_cluster agar seragam dengan K-Means
+fviz_cluster(list(data = data_viz, cluster = gmm_result$classification),
+             geom = "point",
+             ellipse.type = "norm", # Menggunakan elips distribusi normal
+             ggtheme = theme_bw(),
+             main = " Visualisasi Klaster GMM (G=3)") +
+  labs(subtitle = "Soft Clustering: Fleksibilitas dalam Menangani Data Overlap")
+```
+
+```{r}
+
+
+# 1. Mengaktifkan library yang diperlukan
+library(meanShiftR)
+library(factoextra)
+
+# 2. Menjalankan Mean-Shift berbasis matriks angka pada data_viz_gabungan
+# Menggunakan nilai bandwidth optimal 0.11 untuk 3 dimensi (R, F, M)
+ms_result <- meanShift(
+  as.matrix(data_vizmm), 
+  bandwidth = c(0.11, 0.11, 0.11)
+)
+
+# 3. Visualisasi menggunakan fviz_cluster agar seragam dengan algoritma lainnya
+# Menampilkan pusat massa (show.clust.cent = TRUE) untuk menandai puncak kepadatan
+fviz_cluster(
+  list(data = data_vizmm, cluster = ms_result$assignment),
+  geom = "point",
+  ellipse = FALSE,
+  shape = 19,
+  show.clust.cent = TRUE, 
+  ggtheme = theme_bw(),
+  main = "Visualisasi Klaster Mean-Shift"
+) + 
+labs(subtitle = "Identifikasi Klaster Berdasarkan Puncak Kepadatan (Density Peaks)")
+```
+
+
+```{r}
+# ==============================================================================
+# KODE R LENGKAP: LOG TRANSFORM, NORMALISASI, DAN K-MEANS UNTUK SELURUH DATA
+# ==============================================================================
+
+# 1. Mengaktifkan library yang diperlukan
+library(dplyr)
+library(caret)
+library(cluster)
+
+# 2. Proses Log Transformation pada seluruh data_rfm (49.673 baris)
+data_rfm$R_log <- log10(data_rfm$Recency + 1)
+data_rfm$F_log <- log10(data_rfm$Frequency + 1)
+data_rfm$M_log <- log10(data_rfm$Monetary + 1)
+
+# 3. Proses Normalisasi Min-Max pada seluruh data hasil log
+# Membuat objek 'data_seluruh_clean' untuk menampung data angka murni
+process_seluruh <- preProcess(data_rfm[, c("R_log", "F_log", "M_log")], method = c("range"))
+data_seluruh_clean <- predict(process_seluruh, data_rfm[, c("R_log", "F_log", "M_log")])
+
+# 4. Menjalankan K-Means dengan k = 3 pada SELURUH data yang sudah siap
+set.seed(123) # Mengunci acakan agar pusat klaster konsisten
+final_kmeans_seluruh <- kmeans(data_seluruh_clean, centers = 3, nstart = 25)
+
+# 5. Memasukkan kembali hasil label klaster ke dataframe utama (data_rfm)
+data_rfm$Cluster_KMeans <- final_kmeans_seluruh$cluster
+
+# ==============================================================================
+# VERIFIKASI HASIL UNTUK LAPORAN SKRIPSI (BAB IV)
+# ==============================================================================
+
+# Melihat jumlah total pelanggan di masing-masing klaster dari 49.673 data
+cat("\n--- Distribusi Jumlah Pelanggan per Klaster (Total Populasi) ---\n")
+print(table(data_rfm$Cluster_KMeans))
+
+# Menghitung rata-rata nilai RFM asli untuk tabel karakteristik fisik
+cat("\n--- Nilai Rata-rata Variabel RFM Asli per Klaster ---\n")
+aggregate(cbind(Recency, Frequency, Monetary) ~ Cluster_KMeans, 
+          data = data_rfm, 
+          FUN = mean)
+
+
+library(meanShiftR)
+library(factoextra)
+
+# 1. sampel 5000 data agar tidak berat
+set.seed(123)
+data_viz_ms <- data_model_murni[sample(nrow(data_model_murni), 5000), ]
+
+# 2. Menjalankan Mean-Shift
+#  menggunakan matrix untuk input meanShiftR
+ms_result <- meanShift(
+  as.matrix(data_viz_db), 
+  bandwidth = c(0.11, 0.11, 0.11) # Sesuai jumlah kolom (R, F, M)
+)
+
+fviz_cluster(list(data = data_viz_db, cluster = ms_result$assignment),
+             geom = "point",
+             ellipse = FALSE, 
+             show.clust.cent = TRUE, 
+             ggtheme = theme_bw(),
+             main = "Visualisasi Klaster Mean-Shift") + 
+  labs(subtitle = "Identifikasi Klaster Berdasarkan Puncak Kepadatan (Density Peaks)")
+```
+```{r}
+# 1. Pastikan library yang dibutuhkan sudah aktif
+library(cluster)
+library(mclust)
+library(dbscan)
+library(meanShiftR)
+
+# 2. Kita buat ulang modelnya khusus untuk data sampel 5000 (data_viz_db)
+# agar semua variabel tersedia untuk evaluasi
+
+# K-Means (k=3)
+final_kmeans <- kmeans(data_viz_db, centers = 3, nstart = 25)
+
+# DBSCAN (eps=0.04, minPts=6) - Ini objek yang tadi dipakai di visualisasi
+# (Jika dbscan_result sudah ada, lewati ini)
+dbscan_result <- dbscan::dbscan(data_viz_db, eps = 0.04, minPts = 6)
+
+# GMM (G=3)
+gmm_result <- Mclust(data_viz_db, G = 3)
+
+# Mean-Shift (Bandwidth=0.11)
+ms_result <- meanShift(as.matrix(data_viz_db), bandwidth = c(0.11, 0.11, 0.11))
+
+# ==========================================================
+# SEKARANG CEK LAGI. Harusnya error-nya sudah hilang.
+# ==========================================================
+print(final_kmeans)
+
+
+
+
+
+library(cluster)
+# Gunakan data_viz_db (sampel 5000) sebagai basis jaraknya
+dist_matrix <- dist(data_viz_db)
+
+# Hitung rata-rata Silhouette
+avg_sil_km <- summary(silhouette(final_kmeans$cluster[1:5000], dist_matrix))$avg.width
+avg_sil_db <- summary(silhouette(dbscan_result$cluster, dist_matrix))$avg.width
+avg_sil_gm <- summary(silhouette(gmm_result$classification, dist_matrix))$avg.width
+avg_sil_ms <- summary(silhouette(ms_result$assignment, dist_matrix))$avg.width
+
+# Panggil satu per satu untuk melihat nilainya
+avg_sil_km  # Ini hasil untuk K-Means
+avg_sil_db  # Ini hasil untuk DBSCAN
+avg_sil_gm  # Ini hasil untuk GMM
+avg_sil_ms  # Ini hasil untuk Mean-Shift
+
+# Contoh untuk K-Means
+plot(silhouette(final_kmeans$cluster[1:5000], dist_matrix), 
+     col = 2:4, main = "Silhouette Plot - K-Means")
+
+
+# ==========================================================
+# 4.2.1 VISUALISASI SILHOUETTE PLOT & SKOR RATA-RATA
+# ==========================================================
+
+library(cluster)
+
+# 1. Pastikan objek evaluasi sudah siap (data sampel 5000: data_viz_db)
+if(!exists("dist_matrix")) dist_matrix <- dist(data_viz_db)
+
+# 2. Atur tampilan layout grafik menjadi 2x2 (agar 4 gambar muncul sekaligus)
+par(mfrow = c(2, 2))
+
+# ----------------------------------------------------------
+# A. Silhouette Plot - K-Means
+# ----------------------------------------------------------
+sil_km <- silhouette(final_kmeans$cluster[1:5000], dist_matrix)
+avg_sil_km <- summary(sil_km)$avg.width
+
+plot(sil_km, 
+     col = 2:4, # Warna untuk k=3
+     border = NA, 
+     main = paste("Silhouette Plot - K-Means\n(Avg Width: ", round(avg_sil_km, 4), ")"),
+     cex.main = 1.2)
+```
+
+
+```{r}
+# ----------------------------------------------------------
+# B. Silhouette Plot - DBSCAN
+# ----------------------------------------------------------
+sil_db <- silhouette(dbscan_result$cluster, dist_matrix)
+avg_sil_db <- summary(sil_db)$avg.width
+
+# Gunakan warna abu-abu untuk Noise (Cluster 0) dan warna lain untuk klaster aktif
+plot(sil_db, 
+     col = c("grey", 2:6), 
+     border = NA,
+     main = paste("Silhouette Plot - DBSCAN\n(Avg Width: ", round(avg_sil_db, 4), ")"),
+     cex.main = 1.2)
+```
+
+
+```{r}
+# ----------------------------------------------------------
+# C. Silhouette Plot - GMM
+# ----------------------------------------------------------
+sil_gm <- silhouette(gmm_result$classification, dist_matrix)
+avg_sil_gm <- summary(sil_gm)$avg.width
+
+plot(sil_gm, 
+     col = 2:4, # Warna untuk G=3
+     border = NA,
+     main = paste("Silhouette Plot - GMM\n(Avg Width: ", round(avg_sil_gm, 4), ")"),
+     cex.main = 1.2)
+```
+
+
+```{r}
+# ----------------------------------------------------------
+# D. Silhouette Plot - Mean-Shift
+# ----------------------------------------------------------
+sil_ms <- silhouette(ms_result$assignment, dist_matrix)
+avg_sil_ms <- summary(sil_ms)$avg.width
+
+plot(sil_ms, 
+     col = rainbow(82), # Warna warni karena klasternya banyak (82)
+     border = NA,
+     main = paste("Silhouette Plot - Mean-Shift\n(Avg Width: ", round(avg_sil_ms, 4), ")"),
+     cex.main = 1.2)
+
+# 3. Kembalikan layout grafik ke normal (1x1)
+par(mfrow = c(1, 1))
+```
+```{r}
+# 1. Load library yang diperlukan
+library(clusterSim)
+
+# DBI K-Means
+dbi_km <- index.DB(data_viz_db, final_kmeans$cluster[1:5000])$DB
+
+# DBI DBSCAN 
+dbi_db <- index.DB(data_viz_db, dbscan_result$cluster)$DB
+
+# DBI GMM
+dbi_gm <- index.DB(data_viz_db, gmm_result$classification)$DB
+
+# DBI Mean-Shift
+dbi_ms <- index.DB(data_viz_db, ms_result$assignment)$DB
+
+# 4.  hasil akhirnya
+cat("HASIL EVALUASI DAVIES-BOULDIN INDEX (DBI)\n")
+cat("==========================================\n")
+cat("Nilai DBI K-Means   :", dbi_km, "\n")
+cat("Nilai DBI GMM       :", dbi_gm, "\n")
+cat("Nilai DBI DBSCAN    :", dbi_db, "\n")
+cat("Nilai DBI Mean-Shift:", dbi_ms, "\n")
+```
+```{r}
+
+library(fpc)
+
+chi_km <- calinhara(data_viz_db, final_kmeans$cluster[1:5000])
+chi_db <- calinhara(data_viz_db, dbscan_result$cluster)
+chi_gm <- calinhara(data_viz_db, gmm_result$classification)
+chi_ms <- calinhara(data_viz_db, ms_result$assignment)
+
+# Menampilkan hasil
+cat("HASIL EVALUASI CALINSKI-HARABASZ INDEX (CHI)\n")
+cat("==========================================\n")
+cat("Nilai CHI K-Means   :", chi_km, "\n")
+cat("Nilai CHI GMM       :", chi_gm, "\n")
+cat("Nilai CHI DBSCAN    :", chi_db, "\n")
+cat("Nilai CHI Mean-Shift:", chi_ms, "\n")
+```
+```{r}
+library(dplyr)
+
+# Kita gabungkan label Cluster dari K-Means ke data asli (data_rfm)
+# Pastikan urutan datanya sama dengan saat kamu mengambil sampel 5000
+karakteristik_asli <- data_rfm[1:5000, ] %>% 
+  mutate(Cluster = final_kmeans$cluster[1:5000]) %>%
+  group_by(Cluster) %>%
+  summarise(
+    Pelanggan = n(),
+    Rata_Recency = round(mean(Recency), 2),    # Hasilnya dalam satuan HARI
+    Rata_Frequency = round(mean(Frequency), 2), # Hasilnya dalam satuan KALI
+    Rata_Monetary = round(mean(Monetary), 2)   # Hasilnya dalam satuan MATA UANG (Misal: Rupiah/Dolar)
+  )
+
+print(karakteristik_asli)
+
+# ==============================================================================
+# KODE R: MENAMPILKAN KARAKTERISTIK FISIK K-MEANS MENGGUNAKAN SELURUH DATA
+# ==============================================================================
+
+library(dplyr)
+
+karakteristik_seluruh_data <- data_rfm %>% 
+  mutate(Cluster = final_kmeans_seluruh$cluster) %>%
+  group_by(Cluster) %>%
+  summarise(
+    Pelanggan_Total = n(),
+    Rata_Recency    = round(mean(Recency), 2),    
+    Rata_Frequency  = round(mean(Frequency), 2),  
+    Rata_Monetary   = round(mean(Monetary), 2)   
+  )
+
+# Menampilkan hasil 
+data.frame(karakteristik_seluruh_data)
+```
+```{r}
+
+# 1. Jalankan fungsi PCA murni pada data sampel 5000
+pca_rfm <- prcomp(data_viz_db, scale. = FALSE)
+
+# 2. MELIHAT PERSENTASE VARIANS (Jawaban untuk angka Dim1 % dan Dim2 %)
+summary(pca_rfm)
+
+# 3. MELIHAT BOBOT KONTRIBUSI VARIABEL (Loading Scores / Eigenvectors)
+# Ini adalah data angka utama yang diminta oleh dosen penguji!
+print(pca_rfm$rotation)
+```
+```{r}
+# ==============================================================================
+# KODE PERBAIKAN FINAL: PAKSA KE FORMAT DATAFRAME KLASIK R MURNI
+# ==============================================================================
+
+library(fpc)
+
+# 1. Paksa data_final_norm menjadi data.frame standar R
+df_klasik_r <- as.data.frame(data_final_norm)
+
+# 2. Saring ulang: Ambil HANYA 3 kolom metrik RFM murni angka secara eksplisit
+# (Langkah ini untuk mengantisipasi jika ada kolom tak terlihat yang ikut terbawa)
+df_validasi_final <- df_klasik_r[, c("Recency", "Frequency", "Monetary")]
+
+# 3. Jalankan kembali clusterboot (Sekarang formatnya sudah disukai kmeansCBI)
+cat("\n--- Menjalankan Uji Robustness & Stabilitas (Bootstrap) ---\n")
+set.seed(123)
+
+stabilitas_cluster <- clusterboot(
+  df_validasi_final,           # <-- Variabel data frame klasik, dijamin aman
+  B = 100,                     
+  bootmethod = "boot", 
+  clustermethod = kmeansCBI,   
+  krange = 3,                  
+  runs = 25                    
+)
+
+# 4. Tampilkan Hasil Stabilitas Jaccard
+cat("\n[HASIL] Nilai Stabilitas Jaccard per Klaster:\n")
+print(stabilitas_cluster$bootmean)
+# ==============================================================================
+# KODE R: MENAMPILKAN BUKTI FISIK UJI ROBUSTNESS K-MEANS
+# ==============================================================================
+
+# 1. Pastikan objek 'stabilitas_cluster' dari clusterboot() sudah dijalankan sebelumnya
+# Jika belum, pastikan baris clusterboot() di atasnya sudah dieksekusi.
+
+# 2. Menampilkan jumlah berapa kali klaster dinyatakan LARUT (dissolved)
+# Nilai ideal untuk model yang robust adalah 0 (artinya klaster tidak pernah hancur)
+cat("\n--- BUKTI ROBUSTNESS 1: Jumlah Klaster yang Larut (Dissolved) ---\n")
+print(stabilitas_cluster$dissolved)
+
+# 3. Menampilkan ringkasan lengkap performa bootstrap
+# Ini akan menampilkan tabel berapa kali komputer berhasil menemukan k=3 selama pengacakan
+cat("\n--- BUKTI ROBUSTNESS 2: Ringkasan Stabilitas Jumlah Klaster ---\n")
+print(stabilitas_cluster)
+```
+```{r}
+# ==============================================================================
+# KODE R: UJI SENSITIVITAS (NSTART) & RASIO R-SQUARE MODEL K-MEANS
+# ==============================================================================
+
+# Pastikan data frame klasik sudah siap (berisi kolom Recency, Frequency, Monetary)
+df_validasi_final <- as.data.frame(data_final_norm)[, c("Recency", "Frequency", "Monetary")]
+
+
+# ------------------------------------------------------------------------------
+# TAHAP 1: ANALISIS SENSITIVITAS PARAMETER (Uji Perubahan Nilai nstart)
+# ------------------------------------------------------------------------------
+cat("\n--- Menjalankan Analisis Sensitivitas Parameter (nstart) ---\n")
+
+# Membuat variasi nilai nstart untuk diuji
+uji_nstart <- c(1, 5, 10, 25, 50)
+hasil_sensitivitas <- data.frame(Nstart = uji_nstart, Total_WCSS = NA)
+
+# Looping untuk menghitung nilai Total WCSS pada setiap nstart
+for(i in 1:length(uji_nstart)) {
+  set.seed(123) # Mengunci acakan agar pengujian adil
+  fit_sensitivitas <- kmeans(df_validasi_final, centers = 3, nstart = uji_nstart[i])
+  hasil_sensitivitas$Total_WCSS[i] <- fit_sensitivitas$tot.withinss
+}
+
+# Menampilkan tabel hasil sensitivitas nstart
+print(hasil_sensitivitas)
+```
+
+
+```{r}
+# ------------------------------------------------------------------------------
+# TAHAP 2: EVALUASI INTERPRETABILITAS KUANTITATIF (Menghitung Rasio R-Square)
+# ------------------------------------------------------------------------------
+cat("\n--- Menghitung Rasio R-Square (Daya Pemisah Klaster) ---\n")
+
+set.seed(123)
+# Jalankan model K-Means utama sesuai parameter
+final_km <- kmeans(df_validasi_final, centers = 3, nstart = 25)
+
+# Rumus Matematis R-Square Klaster: (Between SS / Total SS) * 100
+r_square <- (final_km$betweenss / final_km$totss) * 100
+
+# Menampilkan hasil persentase R-Square ke layar
+cat("\n[HASIL] Rasio R-Square Model K-Means:", round(r_square, 2), "%\n")
+```
+
