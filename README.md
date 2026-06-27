@@ -21,7 +21,7 @@ This project follows the **KDD (Knowledge Discovery in Databases)** stages:
 
 **Key Findings**
 1. The **K-Means algorithm** was identified as the optimal model for this dataset, achieving a Silhouette Score of 0.38.
-2. Customers are categorized into three primary segments: **Champions, Potential Loyalists, and At-Risk Customers**.
+2. Customers are categorized into three primary segments: **Champions, Potential Loyalists, and Hibernating Customers**.
 3. The results provide a basis for data-driven marketing strategies, such as loyalty programs and customer reactivation campaigns.
 
 **Technologies Used**
